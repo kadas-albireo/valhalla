@@ -5,6 +5,7 @@
 #include "proto/options.pb.h"
 #include "proto_conversions.h"
 #include "sif/costconstants.h"
+#include "sif/costfactory.h"
 #include "worker.h"
 
 #include "test.h"
@@ -253,8 +254,8 @@ std::string get_request_str(const std::string& grandparent_key,
                             const std::string& parent_key,
                             const std::string& key,
                             const bool specified_value) {
-  return R"({")" + grandparent_key + R"(":{")" + parent_key + R"(":{")" + key + R"(":)" +
-         std::string(specified_value ? "true" : "false") + R"(}}})";
+  return R"({"costing":")" + parent_key + R"(",")" + grandparent_key + R"(":{")" + parent_key +
+         R"(":{")" + key + R"(":)" + std::string(specified_value ? "true" : "false") + R"(}}})";
 }
 
 std::string get_request_str(const std::string& key, const float expected_value) {
@@ -270,8 +271,8 @@ std::string get_request_str(const std::string& grandparent_key,
                             const std::string& parent_key,
                             const std::string& key,
                             const float specified_value) {
-  return R"({")" + grandparent_key + R"(":{")" + parent_key + R"(":{")" + key + R"(":)" +
-         std::to_string(specified_value) + R"(}}})";
+  return R"({"costing":")" + parent_key + R"(",")" + grandparent_key + R"(":{")" + parent_key +
+         R"(":{")" + key + R"(":)" + std::to_string(specified_value) + R"(}}})";
 }
 
 std::string get_request_str(const std::string& grandparent_key,
@@ -280,16 +281,17 @@ std::string get_request_str(const std::string& grandparent_key,
                             const std::string& sibling_value,
                             const std::string& key,
                             const float specified_value) {
-  return R"({")" + grandparent_key + R"(":{")" + parent_key + R"(":{")" + sibling_key + R"(":")" +
-         sibling_value + R"(",")" + key + R"(":)" + std::to_string(specified_value) + R"(}}})";
+  return R"({"costing":")" + parent_key + R"(",")" + grandparent_key + R"(":{")" + parent_key +
+         R"(":{")" + sibling_key + R"(":")" + sibling_value + R"(",")" + key + R"(":)" +
+         std::to_string(specified_value) + R"(}}})";
 }
 
 std::string get_request_str(const std::string& grandparent_key,
                             const std::string& parent_key,
                             const std::string& key,
                             const uint32_t specified_value) {
-  return R"({")" + grandparent_key + R"(":{")" + parent_key + R"(":{")" + key + R"(":)" +
-         std::to_string(specified_value) + R"(}}})";
+  return R"({"costing":")" + parent_key + R"(",")" + grandparent_key + R"(":{")" + parent_key +
+         R"(":{")" + key + R"(":)" + std::to_string(specified_value) + R"(}}})";
 }
 
 std::string get_request_str(const std::string& grandparent_key,
@@ -298,16 +300,17 @@ std::string get_request_str(const std::string& grandparent_key,
                             const std::string& sibling_value,
                             const std::string& key,
                             const uint32_t specified_value) {
-  return R"({")" + grandparent_key + R"(":{")" + parent_key + R"(":{")" + sibling_key + R"(":")" +
-         sibling_value + R"(",")" + key + R"(":)" + std::to_string(specified_value) + R"(}}})";
+  return R"({"costing":")" + parent_key + R"(",")" + grandparent_key + R"(":{")" + parent_key +
+         R"(":{")" + sibling_key + R"(":")" + sibling_value + R"(",")" + key + R"(":)" +
+         std::to_string(specified_value) + R"(}}})";
 }
 
 std::string get_request_str(const std::string& grandparent_key,
                             const std::string& parent_key,
                             const std::string& key,
                             const std::string& specified_value) {
-  return R"({")" + grandparent_key + R"(":{")" + parent_key + R"(":{")" + key + R"(":")" +
-         specified_value + R"("}}})";
+  return R"({"costing":")" + parent_key + R"(",")" + grandparent_key + R"(":{")" + parent_key +
+         R"(":{")" + key + R"(":")" + specified_value + R"("}}})";
 }
 
 std::string get_request_str(const std::string& key, const uint32_t expected_value) {
@@ -358,8 +361,9 @@ std::string get_filter_request_str(const std::string& costing,
                                    const std::string& filter_type,
                                    const valhalla::FilterAction filter_action,
                                    const std::vector<std::string>& filter_ids) {
-  return R"({"costing_options":{")" + costing + R"(":{"filters":{")" + filter_type + R"(":{)" +
-         get_kv_str("action", filter_action) + R"(,)" + get_kv_str("ids", filter_ids) + R"(}}}}})";
+  return R"({"costing":")" + costing + R"(",)" + R"("costing_options":{")" + costing +
+         R"(":{"filters":{")" + filter_type + R"(":{)" + get_kv_str("action", filter_action) +
+         R"(,)" + get_kv_str("ids", filter_ids) + R"(}}}}})";
 }
 
 Api get_request(const std::string& request_str, const Options::Action action) {
@@ -1637,6 +1641,41 @@ void test_closure_factor_parsing(const Costing::Type costing_type,
   validate(key, expected_value, options.closure_factor());
 }
 
+// utility functions for testing disable_hierarchy_pruning
+// Create costing options (reference: /test/astar.cc)
+void create_costing_options(Options& options, Costing::Type type) {
+  const rapidjson::Document doc;
+  options.set_costing_type(type);
+  sif::ParseCosting(doc, "/costing_options", options);
+}
+
+// Set disable_hierarchy_pruning to true in costing options
+void set_disable_hierarchy_pruning(Options& options, Costing::Type type) {
+  Costing* costing = &(*options.mutable_costings())[type];
+  auto* co = costing->mutable_options();
+  co->set_disable_hierarchy_pruning(true);
+}
+
+// test disable_hierarchy_pruning
+class HierarchyTest : public ::testing::TestWithParam<Costing::Type> {
+protected:
+  // Test the hierarchy limits are actually disabled when disable_hierarchy_pruning = true
+  void doTest(Costing::Type costing_type) {
+    // Set costing options
+    Options options;
+    set_disable_hierarchy_pruning(options, costing_type);
+    create_costing_options(options, costing_type);
+    valhalla::sif::TravelMode travel_mode;
+    const auto mode_costing = valhalla::sif::CostFactory().CreateModeCosting(options, travel_mode);
+
+    // Check hierarchy limits
+    auto& hierarchy_limits = mode_costing[int(travel_mode)]->GetHierarchyLimits();
+    for (auto& hierarchy : hierarchy_limits) {
+      EXPECT_EQ(hierarchy.max_up_transitions, kUnlimitedTransitions);
+    }
+  }
+};
+
 ///////////////////////////////////////////////////////////////////////////////
 // test by key methods
 TEST(ParseRequest, test_polygons) {
@@ -1743,11 +1782,6 @@ TEST(ParseRequest, test_default_base_cost_options) {
 
 TEST(ParseRequest, test_transport_type) {
   std::string transport_type_key = "type";
-  std::string transport_type_value = "car";
-  for (auto costing : get_base_auto_costing_list()) {
-    test_transport_type_parsing(costing, transport_type_key, transport_type_value,
-                                transport_type_value);
-  }
 
   Costing::Type costing = Costing::pedestrian;
   for (const auto& transport_type_value : {"foot", "wheelchair"}) {
@@ -2837,6 +2871,20 @@ TEST(ParseRequest, test_operators_transit_filter) {
   filter_ids = {"operator10", "operator20", "operator30"};
   test_filter_operator_parsing(costing, filter_action, filter_ids);
 }
+
+// test disable_hierarchy_pruning
+TEST_P(HierarchyTest, TestDisableHierarchy) {
+  doTest(GetParam());
+}
+
+INSTANTIATE_TEST_SUITE_P(disable_hierarchy_pruning,
+                         HierarchyTest,
+                         ::testing::Values(Costing::auto_,
+                                           Costing::bus,
+                                           Costing::motor_scooter,
+                                           Costing::truck,
+                                           Costing::motorcycle,
+                                           Costing::taxi));
 
 } // namespace
 

@@ -1,10 +1,8 @@
 #include <boost/property_tree/ptree.hpp>
 #include <cstdint>
 #include <functional>
-#include <sstream>
 #include <stdexcept>
 #include <string>
-#include <unordered_map>
 #include <unordered_set>
 
 #include "baldr/json.h"
@@ -206,7 +204,8 @@ loki_worker_t::loki_worker_t(const boost::property_tree::ptree& config,
         kv.first == "max_radius" || kv.first == "max_timedep_distance" ||
         kv.first == "max_timedep_distance_matrix" || kv.first == "max_alternates" ||
         kv.first == "max_exclude_polygons_length" || kv.first == "max_chinese_polygon_length" ||
-        kv.first == "skadi" || kv.first == "status") {
+        kv.first == "max_distance_disable_hierarchy_culling" || kv.first == "skadi" ||
+        kv.first == "status") {
       continue;
     }
     if (kv.first != "trace") {
@@ -267,6 +266,9 @@ loki_worker_t::loki_worker_t(const boost::property_tree::ptree& config,
   max_alternates = config.get<unsigned int>("service_limits.max_alternates");
   allow_verbose = config.get<bool>("service_limits.status.allow_verbose", false);
   max_timedep_dist_matrix = config.get<size_t>("service_limits.max_timedep_distance_matrix", 0);
+  // assign max_distance_disable_hierarchy_culling
+  max_distance_disable_hierarchy_culling =
+      config.get<float>("service_limits.max_distance_disable_hierarchy_culling", 0.f);
 
   // signal that the worker started successfully
   started();
@@ -284,7 +286,55 @@ void loki_worker_t::set_interrupt(const std::function<void()>* interrupt_functio
   reader->SetInterrupt(interrupt);
 }
 
-#ifdef HAVE_HTTP
+// Check if total arc distance exceeds the max distance limit for disable_hierarchy_pruning.
+// If true, add a warning and set the disable_hierarchy_pruning costing option to false.
+void loki_worker_t::check_hierarchy_distance(Api& request) {
+  auto& options = *request.mutable_options();
+  // Bail early if the mode of travel is not vehicular.
+  // Bike and pedestrian don't use hierarchies anyway.
+  if (options.costing_type() == Costing_Type_bicycle ||
+      options.costing_type() == Costing_Type_pedestrian) {
+    return;
+  }
+
+  // If disable_hierarchy_pruning is not true, skip the rest.
+  auto costing_options = options.mutable_costings()->find(options.costing_type());
+  if (!costing_options->second.options().disable_hierarchy_pruning()) {
+    return;
+  }
+
+  // For route action check if total distances between locations exceed the max limit.
+  // For matrix action, check every pair of source and target.
+  bool max_distance_exceeded = false;
+  if (request.options().action() == Options_Action_sources_to_targets) {
+    for (auto& source : *options.mutable_sources()) {
+      for (auto& target : *options.mutable_targets()) {
+        if (to_ll(source).Distance(to_ll(target)) > max_distance_disable_hierarchy_culling) {
+          max_distance_exceeded = true;
+          break;
+        }
+      }
+    }
+  } else {
+    auto locations = options.locations();
+    float arc_distance = 0.0f;
+    for (auto source = locations.begin(); source != locations.end() - 1; ++source) {
+      arc_distance += to_ll(*source).Distance(to_ll(*(source + 1)));
+      if (arc_distance > max_distance_disable_hierarchy_culling) {
+        max_distance_exceeded = true;
+        break;
+      }
+    }
+  }
+
+  // Turn off disable_hierarchy_pruning and add a warning if max limit exceeded.
+  if (max_distance_exceeded) {
+    add_warning(request, 205);
+    costing_options->second.mutable_options()->set_disable_hierarchy_pruning(false);
+  }
+}
+
+#ifdef ENABLE_SERVICES
 prime_server::worker_t::result_t
 loki_worker_t::work(const std::list<zmq::message_t>& job,
                     void* request_info,
@@ -347,8 +397,10 @@ loki_worker_t::work(const std::list<zmq::message_t>& job,
       case Options::expansion:
         if (options.expansion_action() == Options::route) {
           route(request);
-        } else {
+        } else if (options.expansion_action() == Options::isochrone) {
           isochrones(request);
+        } else {
+          matrix(request);
         }
         result.messages.emplace_back(request.SerializeAsString());
         break;

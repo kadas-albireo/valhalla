@@ -3,12 +3,10 @@
 
 #include <fstream>
 #include <future>
-#include <iostream>
 #include <list>
 #include <mutex>
 #include <thread>
 #include <tuple>
-#include <unordered_map>
 #include <vector>
 
 #include <boost/algorithm/string.hpp>
@@ -44,16 +42,16 @@ struct OSMConnectionEdge {
   std::vector<std::string> names;
   std::vector<PointLL> shape;
   std::vector<std::string> tagged_values;
-  std::vector<std::string> pronunciations;
+  std::vector<std::string> linguistics;
 };
 
 // Struct to hold stats information during each threads work
 struct builder_stats {
-  uint32_t stats;
+  uint64_t conn_edges;
 
   // Accumulate stats from all threads
   void operator()(const builder_stats& other) {
-    stats += other.stats;
+    conn_edges += other.conn_edges;
   }
 };
 
@@ -62,9 +60,8 @@ void ConnectToGraph(GraphTileBuilder& tilebuilder_local,
                     const graph_tile_ptr& tile,
                     GraphReader& reader_transit_level,
                     std::mutex& lock,
-                    const std::vector<OSMConnectionEdge>& connection_edges) {
-  auto t1 = std::chrono::high_resolution_clock::now();
-
+                    const std::vector<OSMConnectionEdge>& connection_edges,
+                    builder_stats& stats) {
   // Move existing nodes and directed edge builder vectors and clear the lists
   std::vector<NodeInfo> currentnodes(std::move(tilebuilder_local.nodes()));
   tilebuilder_local.nodes().clear();
@@ -168,8 +165,7 @@ void ConnectToGraph(GraphTileBuilder& tilebuilder_local,
       bool added = false;
       uint32_t edge_info_offset =
           tilebuilder_local.AddEdgeInfo(0, conn.osm_node, endnode, conn.wayid, 0, 0, 0, conn.shape,
-                                        conn.names, conn.tagged_values, conn.pronunciations, 0,
-                                        added);
+                                        conn.names, conn.tagged_values, conn.linguistics, 0, added);
       directededge.set_edgeinfo_offset(edge_info_offset);
       directededge.set_forward(true);
       tilebuilder_local.directededges().emplace_back(std::move(directededge));
@@ -265,8 +261,8 @@ void ConnectToGraph(GraphTileBuilder& tilebuilder_local,
         std::reverse(r_shape.begin(), r_shape.end());
         uint32_t edge_info_offset =
             tilebuilder_transit.AddEdgeInfo(0, conn.stop_node, conn.osm_node, conn.wayid, 0, 0, 0,
-                                            r_shape, conn.names, conn.tagged_values,
-                                            conn.pronunciations, 0, added);
+                                            r_shape, conn.names, conn.tagged_values, conn.linguistics,
+                                            0, added);
         LOG_DEBUG("Add conn from stop to OSM: ei offset = " + std::to_string(edge_info_offset));
         directededge.set_edgeinfo_offset(edge_info_offset);
         directededge.set_forward(true);
@@ -311,11 +307,9 @@ void ConnectToGraph(GraphTileBuilder& tilebuilder_local,
   }
 
   // Log the number of added nodes and edges
-  auto t2 = std::chrono::high_resolution_clock::now();
-  LOG_INFO("Tile " + std::to_string(tilebuilder_local.header()->graphid().tileid()) + ": added " +
-           std::to_string(connedges) + " connection edges. time = " +
-           std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count()) +
-           " ms");
+  LOG_DEBUG("Tile " + std::to_string(tilebuilder_local.header()->graphid().tileid()) + ": added " +
+            std::to_string(connedges) + " connection edges.");
+  stats.conn_edges = connedges;
 }
 
 std::vector<OSMConnectionEdge> MakeConnections(const graph_tile_ptr& local_tile,
@@ -466,6 +460,7 @@ void build(const boost::property_tree::ptree& pt,
   GraphReader reader_local_level(pt);
   GraphReader reader_transit_level(pt);
 
+  builder_stats stats;
   // Iterate through the tiles in the queue and find any that include stops
   for (; tile_start != tile_end; ++tile_start) {
     // Get the next tile Id from the queue and get a tile builder
@@ -491,7 +486,7 @@ void build(const boost::property_tree::ptree& pt,
 
     // TODO - how to handle connections that reach nodes outside the tile? Need to break up the calls
     //  to MakeConnections and ConnectToGraph below. First we have threads find all the connections
-    //  even accross tile boundaries, we keep those in ram and then we run another pass where we add
+    //  even across tile boundaries, we keep those in ram and then we run another pass where we add
     //  those to the tiles when we rewrite them in ConnectToGraph. So two separate threaded steps
     //  rather than cramming both of them into the single build function
 
@@ -513,7 +508,7 @@ void build(const boost::property_tree::ptree& pt,
 
     // Connect the transit graph to the route graph
     ConnectToGraph(tilebuilder_local, tilebuilder_transit, local_tile, reader_transit_level, lock,
-                   connection_edges);
+                   connection_edges, stats);
 
     // Write the new file
     lock.lock();
@@ -523,7 +518,7 @@ void build(const boost::property_tree::ptree& pt,
   }
 
   // Send back the statistics
-  results.set_value({});
+  results.set_value(stats);
 }
 
 } // namespace
@@ -634,6 +629,8 @@ void TransitBuilder::Build(const boost::property_tree::ptree& pt) {
     thread->join();
   }
 
+  uint64_t total_conn_edges = 0;
+
   // Check all of the outcomes, to see about maximum density (km/km2)
   builder_stats stats{};
   for (auto& result : results) {
@@ -641,13 +638,18 @@ void TransitBuilder::Build(const boost::property_tree::ptree& pt) {
     try {
       auto thread_stats = result.get_future().get();
       stats(thread_stats);
+      total_conn_edges += stats.conn_edges;
     } catch (std::exception& e) {
       // TODO: throw further up the chain?
     }
   }
 
+  if (total_conn_edges) {
+    LOG_INFO("Found " + std::to_string(total_conn_edges) + " connection edges");
+  }
+
   auto t2 = std::chrono::high_resolution_clock::now();
-  uint32_t secs = std::chrono::duration_cast<std::chrono::seconds>(t2 - t1).count();
+  [[maybe_unused]] uint32_t secs = std::chrono::duration_cast<std::chrono::seconds>(t2 - t1).count();
   LOG_INFO("Finished - TransitBuilder took " + std::to_string(secs) + " secs");
 }
 

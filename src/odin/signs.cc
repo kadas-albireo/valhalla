@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <cmath>
-#include <utility>
+
+#include "midgard/logging.h"
 
 #include "baldr/verbal_text_formatter.h"
 #include "baldr/verbal_text_formatter_us.h"

@@ -5,7 +5,6 @@
 #include <map>
 #include <memory>
 #include <unordered_map>
-#include <utility>
 #include <vector>
 
 #include <valhalla/baldr/double_bucket_queue.h>
@@ -74,11 +73,9 @@ public:
   void Clear() override;
 
 protected:
-  // Current walking distance.
-  uint32_t walking_distance_;
-  uint32_t max_label_count_; // Max label count to allow
-  sif::TravelMode mode_;     // Current travel mode
-  uint8_t travel_type_;      // Current travel type
+  uint32_t max_walking_dist_;
+  sif::TravelMode mode_; // Current travel mode
+  uint8_t travel_type_;  // Current travel type
 
   bool date_set_;
   bool date_before_tile_;

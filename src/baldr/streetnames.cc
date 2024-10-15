@@ -1,6 +1,7 @@
-#include <iostream>
 #include <optional>
 #include <vector>
+
+#include "midgard/logging.h"
 
 #include "baldr/streetname.h"
 #include "baldr/streetnames.h"

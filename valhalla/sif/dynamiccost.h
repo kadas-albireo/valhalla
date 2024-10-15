@@ -48,6 +48,25 @@
   }
 
 /**
+ * same as above, but for costing options without pbf's awful oneof
+ *
+ * @param costing_options  pointer to protobuf costing options object
+ * @param range            ranged_default_t object which will check any provided values are in range
+ * @param json             rapidjson value object which should contain user provided costing options
+ * @param json_key         the json key to use to pull a user provided value out of the jsonn
+ * @param option_name      the name of the option will be set on the costing options object
+ */
+
+#define JSON_PBF_RANGED_DEFAULT_V2(costing_options, range, json, json_key, option_name)              \
+  {                                                                                                  \
+    costing_options->set_##option_name(                                                              \
+        range(rapidjson::get<decltype(range.def)>(json, json_key,                                    \
+                                                  costing_options->option_name()                     \
+                                                      ? costing_options->option_name()               \
+                                                      : range.def)));                                \
+  }
+
+/**
  * this macro takes a default value and uses it when no user provided values exist (in json or in pbf)
  * to set the option on the costing options object
  *
@@ -68,10 +87,45 @@
                                      : def));                                                        \
   }
 
+/**
+ * same as above, but for costing options without pbf's awful oneof
+ *
+ * @param costing_options  pointer to protobuf costing options object
+ * @param def              the default value which is used when neither json nor pbf is provided
+ * @param json             rapidjson value object which should contain user provided costing options
+ * @param json_key         the json key to use to pull a user provided value out of the json
+ * @param option_name      the name of the option will be set on the costing options object
+ */
+
+#define JSON_PBF_DEFAULT_V2(costing_options, def, json, json_key, option_name)                       \
+  {                                                                                                  \
+    costing_options->set_##option_name(                                                              \
+        rapidjson::get<std::remove_cv<                                                               \
+            std::remove_reference<decltype(def)>::type>::type>(json, json_key,                       \
+                                                               costing_options->option_name()        \
+                                                                   ? costing_options->option_name()  \
+                                                                   : def));                          \
+  }
+
 using namespace valhalla::midgard;
 
 namespace valhalla {
 namespace sif {
+
+const std::unordered_map<Costing::Type, std::vector<Costing::Type>> kCostingTypeMapping{
+    {Costing::none_, {Costing::none_}},
+    {Costing::bicycle, {Costing::bicycle}},
+    {Costing::bus, {Costing::bus}},
+    {Costing::motor_scooter, {Costing::motor_scooter}},
+    {Costing::multimodal, {Costing::multimodal, Costing::transit, Costing::pedestrian}},
+    {Costing::pedestrian, {Costing::pedestrian}},
+    {Costing::transit, {Costing::transit, Costing::pedestrian}},
+    {Costing::truck, {Costing::truck}},
+    {Costing::motorcycle, {Costing::motorcycle}},
+    {Costing::taxi, {Costing::taxi}},
+    {Costing::auto_, {Costing::auto_}},
+    {Costing::bikeshare, {Costing::bikeshare, Costing::pedestrian, Costing::bicycle}},
+};
 
 const sif::Cost kNoCost(0.0f, 0.0f);
 
@@ -174,15 +228,6 @@ public:
    * @return  mode factor
    */
   virtual float GetModeFactor();
-
-  /**
-   * This method overrides the max_distance with the max_distance_mm per segment
-   * distance. An example is a pure walking route may have a max distance of
-   * 10000 meters (10km) but for a multi-modal route a lower limit of 5000
-   * meters per segment (e.g. from origin to a transit stop or from the last
-   * transit stop to the destination).
-   */
-  virtual void UseMaxMultiModalDistance();
 
   /**
    * Get the access mode used by this costing method.
@@ -402,6 +447,9 @@ public:
                   thor::EdgeStatus* edgestatus = nullptr,
                   const uint64_t current_time = 0,
                   const uint32_t tz_index = 0) const {
+    if (ignore_turn_restrictions_)
+      return false;
+
     // Lambda to get the next predecessor EdgeLabel (that is not a transition)
     auto next_predecessor = [&edge_labels](const EdgeLabel* label) {
       // Get the next predecessor - make sure it is valid. Continue to get
@@ -415,7 +463,7 @@ public:
           // A complex restriction spans multiple edges, e.g. from A to C via B.
           //
           // At the point of triggering a complex restriction, all edges leading up to C
-          // hav already been evaluated. I.e. B is now marked as kPermanent since
+          // have already been evaluated. I.e. B is now marked as kPermanent since
           // we didn't know at the time of B's evaluation that A to B would eventually
           // form a restricted path
           //
@@ -449,10 +497,10 @@ public:
 
     // If forward, check if the edge marks the end of a restriction, else check
     // if the edge marks the start of a complex restriction.
-    if ((forward && (edge->end_restriction() & access_mode())) ||
-        (!forward && (edge->start_restriction() & access_mode()))) {
+    if ((forward && (edge->end_restriction() & access_mask_)) ||
+        (!forward && (edge->start_restriction() & access_mask_))) {
       // Get complex restrictions. Return false if no restrictions are found
-      auto restrictions = tile->GetRestrictions(forward, edgeid, access_mode());
+      auto restrictions = tile->GetRestrictions(forward, edgeid, access_mask_);
       if (restrictions.size() == 0) {
         return false;
       }
@@ -515,7 +563,7 @@ public:
             }
             continue;
           }
-          // TODO: If a user runs a non-time dependent route, we need to provide Manuever Notes for
+          // TODO: If a user runs a non-time dependent route, we need to provide Maneuver Notes for
           // the timed restriction.
           else if (!current_time && cr->has_dt()) {
             return false;
@@ -551,6 +599,18 @@ public:
                                                   baldr::DateTime::get_tz_db().from_index(tz_index));
   }
 
+  /***
+   * Evaluates mode-specific and time-dependent access restrictions, including a binary
+   * search to get the tile's access restrictions.
+   *
+   * @param access_mode        The access mode to get restrictions for
+   * @param edge               The edge to check for restrictions
+   * @param is_dest            Is there a destination on the edge?
+   * @param tile               The edge's tile
+   * @param current_time       Needed for time dependent restrictions
+   * @param tz_index           The current timezone index
+   * @param restriction_idx    Records the restriction in the tile for later retrieval
+   */
   inline bool EvaluateRestrictions(uint32_t access_mode,
                                    const baldr::DirectedEdge* edge,
                                    const bool is_dest,
@@ -571,9 +631,10 @@ public:
       const auto& restriction = restrictions[i];
       // Compare the time to the time-based restrictions
       baldr::AccessType access_type = restriction.type();
-      if (access_type == baldr::AccessType::kTimedAllowed ||
-          access_type == baldr::AccessType::kTimedDenied ||
-          access_type == baldr::AccessType::kDestinationAllowed) {
+      if (!ignore_non_vehicular_restrictions_ &&
+          (access_type == baldr::AccessType::kTimedAllowed ||
+           access_type == baldr::AccessType::kTimedDenied ||
+           access_type == baldr::AccessType::kDestinationAllowed)) {
         // TODO: if(i > baldr::kInvalidRestriction) LOG_ERROR("restriction index overflow");
         restriction_idx = static_cast<uint8_t>(i);
 
@@ -761,6 +822,12 @@ public:
   virtual uint8_t travel_type() const;
 
   /**
+   * Is the current vehicle type HGV?
+   * @return  Returns whether it's a truck.
+   */
+  virtual bool is_hgv() const;
+
+  /**
    * Get the wheelchair required flag.
    * @return  Returns true if wheelchair is required.
    */
@@ -872,7 +939,7 @@ public:
                      const baldr::TimeInfo& time_info,
                      uint8_t flow_sources,
                      float edge_speed) const {
-    // TODO: speed_penality hasn't been extensively tested, might alter this in future
+    // TODO: speed_penalty hasn't been extensively tested, might alter this in future
     float average_edge_speed = edge_speed;
     // dont use current speed layer for penalties as live speeds might be too low/too high
     // better to use layers with smoothed/constant speeds
@@ -898,6 +965,12 @@ protected:
    * @param use_living_streets value of living streets preference in range [0; 1]
    */
   virtual void set_use_living_streets(float use_living_streets);
+
+  /**
+   * Calculate `lit` costs based on lit preference.
+   * @param use_lit value of lit preference in range [0; 1]
+   */
+  virtual void set_use_lit(float use_lit);
 
   // Algorithm pass
   uint32_t pass_;
@@ -930,6 +1003,7 @@ protected:
   float living_street_factor_; // Avoid living streets factor.
   float service_factor_;       // Avoid service roads factor.
   float closure_factor_;       // Avoid closed edges factor.
+  float unlit_factor_;         // Avoid unlit edges factor.
 
   // Transition costs
   sif::Cost country_crossing_cost_;
@@ -943,7 +1017,8 @@ protected:
   // Penalties that all costing methods support
   float maneuver_penalty_;         // Penalty (seconds) when inconsistent names
   float alley_penalty_;            // Penalty (seconds) to use a alley
-  float destination_only_penalty_; // Penalty (seconds) using private road, driveway, or parking aisle
+  float destination_only_penalty_; // Penalty (seconds) using private road, driveway, parking aisle or
+                                   // destination only road
   float living_street_penalty_;    // Penalty (seconds) to use a living street
   float track_penalty_;            // Penalty (seconds) to use tracks
   float service_penalty_;          // Penalty (seconds) to use a generic service road
@@ -959,6 +1034,10 @@ protected:
   bool shortest_;
 
   bool ignore_restrictions_{false};
+  bool ignore_non_vehicular_restrictions_{false};
+  // not a requestion parameter, it's true if either ignore_restrictions_ or
+  // ignore_non_vehicular_restrictions_ is true
+  bool ignore_turn_restrictions_{false};
   bool ignore_oneways_{false};
   bool ignore_access_{false};
   bool ignore_closures_{false};
@@ -1053,6 +1132,9 @@ protected:
     // Get living street factor from costing options.
     set_use_living_streets(costing_options.use_living_streets());
 
+    // Calculate lit factor from costing options.
+    set_use_lit(costing_options.use_lit());
+
     // Penalty and factor to use service roads
     service_penalty_ = costing_options.service_penalty();
     service_factor_ = costing_options.service_factor();
@@ -1111,7 +1193,8 @@ protected:
          (edge->use() == baldr::Use::kRailFerry && pred->use() != baldr::Use::kRailFerry);
 
     // Additional penalties without any time cost
-    c.cost += destination_only_penalty_ * (edge->destonly() && !pred->destonly());
+    c.cost += destination_only_penalty_ *
+              ((is_hgv() ? edge->destonly_hgv() : edge->destonly()) && !pred->destonly());
     c.cost +=
         alley_penalty_ * (edge->use() == baldr::Use::kAlley && pred->use() != baldr::Use::kAlley);
     c.cost += maneuver_penalty_ * (!edge->link() && !edge->name_consistency(idx));
@@ -1171,6 +1254,7 @@ struct BaseCostingOptionsConfig {
 
   ranged_default_t<float> use_tracks_;
   ranged_default_t<float> use_living_streets_;
+  ranged_default_t<float> use_lit_;
 
   ranged_default_t<float> closure_factor_;
 
@@ -1196,7 +1280,7 @@ void ParseBaseCostOptions(const rapidjson::Value& json,
                           const BaseCostingOptionsConfig& cfg);
 
 /**
- * Parses all the costing options for all supported costings
+ * Parses all the costing options for all needed costings
  * @param doc                   json document
  * @param costing_options_key   the key in the json document where the options are located
  * @param options               where to store the parsed costing

@@ -1,8 +1,6 @@
 #pragma once
 
 #include <cstdint>
-#include <map>
-#include <string>
 #include <vector>
 
 #include <valhalla/midgard/pointll.h>
@@ -37,6 +35,9 @@ struct OSMAdmin {
 
   // do we call out intersection names at intersections?
   bool allow_intersection_names;
+
+  // Default language
+  uint32_t default_language_index;
 };
 
 /**
