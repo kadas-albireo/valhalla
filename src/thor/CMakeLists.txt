@@ -38,7 +38,6 @@ set(sources_with_warnings
   triplegbuilder_utils.h
   unidirectional_astar.cc
   ${VALHALLA_SOURCE_DIR}/third_party/hungarian-algorithm-cpp/Hungarian.cpp)
-  triplegbuilder_utils.h)
 
 set(system_includes
   ${date_include_dir}
