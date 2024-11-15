@@ -7,8 +7,8 @@ set(sources
   matrix_action.cc
   status_action.cc
   transit_available_action.cc
-  polygon_search.cc
-  chinese_postman_action.cc)
+  chinese_postman_action.cc
+  polygon_search.cc)
 
 # Enables stricter compiler checks on a file-by-file basis
 # which allows us to migrate piecemeal

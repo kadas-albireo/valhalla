@@ -367,7 +367,7 @@ if(ENABLE_SERVICES)
 endif()
 
 if(ENABLE_PYTHON_BINDINGS AND ENABLE_DATA_TOOLS)
-  find_package(Python3 COMPONENTS Interpreter)
+  find_package(Python COMPONENTS Interpreter)
   add_custom_command(OUTPUT python_valhalla.log
     COMMAND
       LOCPATH=${VALHALLA_SOURCE_DIR}/locales

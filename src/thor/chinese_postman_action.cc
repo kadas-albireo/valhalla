@@ -125,7 +125,7 @@ std::vector<PathInfo> buildPath(GraphReader& graphreader,
     return (edge_itr == path_edges.end()) ? GraphId{} : (*edge_itr++);
   };
 
-  const auto label_cb = [&path, &recovered_inner_edges](const EdgeLabel& label) {
+  const auto label_cb = [&path, &recovered_inner_edges](const PathEdgeLabel& label) {
     path.emplace_back(label.mode(), label.cost(), label.edgeid(), 0, label.path_distance(),
                       label.restriction_idx(), label.transition_cost(),
                       recovered_inner_edges.count(label.edgeid()));
@@ -143,7 +143,9 @@ std::vector<PathInfo> buildPath(GraphReader& graphreader,
 }
 
 // Computing the cost matrix between graph ids
-DistanceMatrix thor_worker_t::computeCostMatrix(const std::vector<baldr::GraphId>& graph_ids,
+DistanceMatrix thor_worker_t::computeCostMatrix(valhalla::Api& request,
+                                                baldr::GraphReader& reader,
+                                                const std::vector<baldr::GraphId>& graph_ids,
                                                 const std::shared_ptr<sif::DynamicCost>& costing,
                                                 const float max_matrix_distance) {
 
@@ -158,17 +160,16 @@ DistanceMatrix thor_worker_t::computeCostMatrix(const std::vector<baldr::GraphId
   // Create the path locations
   sources_targets_pair::first_type sources;
   sources_targets_pair::second_type targets;
-  std::tie(sources, targets) = sources_targets_from_nodes(graph_ids, *costing, *reader);
-
+  std::tie(sources, targets) = sources_targets_from_nodes(graph_ids, *costing, reader);
+  request.mutable_options()->mutable_sources()->CopyFrom(sources);
+  request.mutable_options()->mutable_targets()->CopyFrom(targets);
   // Get the all pairs matrix result
-  CostMatrix costmatrix;
-  std::vector<thor::TimeDistance> td =
-      costmatrix.SourceToTarget(sources, targets, *reader, mode_costing, mode, max_matrix_distance);
+  costmatrix_.SourceToTarget(request, reader, mode_costing, mode, max_matrix_distance);
 
   // Update Distance Matrix
   for (int i = 0; i < graph_ids.size(); i++) {
     for (int j = 0; j < graph_ids.size(); j++) {
-      distanceMatrix[i][j] = td[i * sources.size() + j].dist;
+      distanceMatrix[i][j] = request.matrix().distances(i * sources.size() + j);
     }
   }
 
@@ -403,7 +404,7 @@ void thor_worker_t::chinese_postman(Api& request) {
     }
 
     // Compute the distance/cost between unbalanced nodes.
-    auto distance_matrix = computeCostMatrix(sorted_unbalanced_nodes, costing_,
+    auto distance_matrix = computeCostMatrix(request, *reader, sorted_unbalanced_nodes, costing_,
                                              max_matrix_distance.find(costing_str)->second);
     // Populating matrix for pairing
     std::vector<std::vector<double>> pairingMatrix;
@@ -422,7 +423,7 @@ void thor_worker_t::chinese_postman(Api& request) {
     LOG_DEBUG("Run Hungarian Algorithm");
     LOG_DEBUG("Number of nodes: " + std::to_string(pairingMatrix.size()));
     HungarianAlgorithm hungarian_algorithm;
-    vector<int> assignment;
+    std::vector<int> assignment;
     hungarian_algorithm.Solve(pairingMatrix, assignment);
     std::vector<std::pair<int, int>> extraPairs;
     for (unsigned int x = 0; x < pairingMatrix.size(); x++) {
@@ -430,7 +431,7 @@ void thor_worker_t::chinese_postman(Api& request) {
       int overNodeIndex = G.getVertexIndex(overNodes[x]);
       int underNodeIndex = G.getVertexIndex(underNodes[assignment[x]]);
       // Concat with main vector
-      extraPairs.push_back(make_pair(overNodeIndex, underNodeIndex));
+      extraPairs.push_back(std::make_pair(overNodeIndex, underNodeIndex));
     }
     auto reverseEulerPath = G.computeIdealEulerCycle(originVertex, extraPairs);
     edgeGraphIds = buildEdgeIds(reverseEulerPath, G, options, costing_str, costing_);

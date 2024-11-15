@@ -1,17 +1,9 @@
 file(GLOB headers ${VALHALLA_SOURCE_DIR}/valhalla/thor/*.h)
 
 set(sources
-  alternates.cc
-  triplegbuilder.cc
-  worker.cc)
-
-set(sources_with_warnings
   astar_bss.cc
   alternates.cc
   bidirectional_astar.cc
-  centroid.cc
-  chinese_postman_action.cc
-  chinese_postman_graph.cc
   costmatrix.cc
   dijkstras.cc
   matrix_action.cc
@@ -25,6 +17,8 @@ set(sources_with_warnings
 
 set(sources_with_warnings
   centroid.cc
+  chinese_postman_action.cc
+  chinese_postman_graph.cc 
   expansion_action.cc
   isochrone_action.cc
   isochrone.cc
@@ -35,9 +29,8 @@ set(sources_with_warnings
   status_action.cc
   trace_attributes_action.cc
   trace_route_action.cc
-  triplegbuilder_utils.h
-  unidirectional_astar.cc
-  ${VALHALLA_SOURCE_DIR}/third_party/hungarian-algorithm-cpp/Hungarian.cpp)
+  ${VALHALLA_SOURCE_DIR}/third_party/hungarian-algorithm-cpp/Hungarian.cpp
+  triplegbuilder_utils.h)
 
 set(system_includes
   ${date_include_dir}
