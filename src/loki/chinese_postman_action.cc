@@ -44,7 +44,7 @@ void loki_worker_t::chinese_postman(Api& request) {
       if (!connectivity_map) {
         continue;
       }
-      auto colors = connectivity_map->get_colors(TileHierarchy::levels().back().level, correlated, 0);
+      auto colors = connectivity_map->get_colors(TileHierarchy::levels().back(), correlated, 0);
       for (auto color : colors) {
         auto itr = color_counts.find(color);
         if (itr == color_counts.cend()) {
