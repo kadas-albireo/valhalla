@@ -133,9 +133,11 @@ jobs:
 
       - name: Archive Valhalla
         uses: actions/upload-artifact@v4
-        path: |
-          build/$BUILD_TYPE/*.dll
-          build/$BUILD_TYPE/*.exe
+        with:
+          name: valhalla
+          path: |
+            build/$BUILD_TYPE/*.dll
+            build/$BUILD_TYPE/*.exe
 
       - name: Setup tmate session
         uses: mxschmitt/action-tmate@v3
