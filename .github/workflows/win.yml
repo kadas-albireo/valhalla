@@ -136,8 +136,8 @@ jobs:
         with:
           name: valhalla
           path: |
-            build/$BUILD_TYPE/*.dll
-            build/$BUILD_TYPE/*.exe
+            ./build/$BUILD_TYPE/*.dll
+            ./build/$BUILD_TYPE/*.exe
 
       - name: Setup tmate session
         uses: mxschmitt/action-tmate@v3
