@@ -131,6 +131,12 @@ jobs:
           ./build/$BUILD_TYPE/valhalla_build_tiles.exe -c ./test/win/valhalla.json ./test/data/utrecht_netherlands.osm.pbf
           ./build/$BUILD_TYPE/valhalla_run_isochrone.exe --config ./test/win/valhalla.json -j "{\"locations\": [{\"lat\": 52.10205, \"lon\": 5.114651}], \"costing\": \"auto\", \"contours\":[{\"time\":15,\"color\":\"ff0000\"}]}"
 
+      - name: Archive Valhalla
+        uses: actions/upload-artifact@v4
+        path: |
+          build/$BUILD_TYPE/*.dll
+          build/$BUILD_TYPE/*.exe
+
       - name: Setup tmate session
         uses: mxschmitt/action-tmate@v3
         # only run this if manually invoked or a previous job failed
