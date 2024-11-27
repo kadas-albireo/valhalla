@@ -106,6 +106,7 @@ jobs:
             -DENABLE_TESTS=OFF \
             -DENABLE_CCACHE=OFF \
             -DENABLE_SERVICES=OFF \
+            -DLOGGING_LEVEL=TRACE \
             -DPREFER_EXTERNAL_DEPS=ON \
             -DENABLE_GDAL=ON
 
