@@ -17,6 +17,7 @@ struct actor_t::pimpl_t {
   pimpl_t(const boost::property_tree::ptree& config)
       : reader(new baldr::GraphReader(config.get_child("mjolnir"))), loki_worker(config, reader),
         thor_worker(config, reader), odin_worker(config) {
+    LOG_INFO("pimple CTOR body");
   }
   pimpl_t(const boost::property_tree::ptree& config, baldr::GraphReader& graph_reader)
       : reader(&graph_reader, [](baldr::GraphReader*) {}), loki_worker(config, reader),
@@ -40,6 +41,7 @@ struct actor_t::pimpl_t {
 
 actor_t::actor_t(const boost::property_tree::ptree& config, bool auto_cleanup)
     : pimpl(new pimpl_t(config)), auto_cleanup(auto_cleanup) {
+  LOG_INFO("actor CTOR body");
 }
 actor_t::actor_t(const boost::property_tree::ptree& config,
                  baldr::GraphReader& reader,

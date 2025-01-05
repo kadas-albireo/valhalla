@@ -45,13 +45,16 @@ int main(int argc, char** argv) {
 
     // setup an object that can answer the request
     valhalla::tyr::actor_t actor(config);
+    LOG_INFO("constructed actor");
 
     // figure out which action
     valhalla::Options::Action action;
+    LOG_INFO("init'ed action");
     if (!valhalla::Options_Action_Enum_Parse(argv[2], &action)) {
       std::cerr << "Unknown action" << std::endl;
       return 1;
     }
+    LOG_INFO("parsed actions");
 
     // if argv[3] is a file, then use its content as request, otherwise use it directly
     std::string request_str;
