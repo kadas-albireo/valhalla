@@ -41,20 +41,17 @@ int main(int argc, char** argv) {
   // one shot direct request mode
   if (argc == 4) {
     // because we want the program output to go only to stdout we force any logging to be stderr
-    valhalla::midgard::logging::Configure({{"type", "std_out"}});
+    valhalla::midgard::logging::Configure({{"type", "std_err"}});
 
     // setup an object that can answer the request
     valhalla::tyr::actor_t actor(config);
-    LOG_INFO("constructed actor");
 
     // figure out which action
     valhalla::Options::Action action;
-    LOG_INFO("init'ed action");
     if (!valhalla::Options_Action_Enum_Parse(argv[2], &action)) {
       std::cerr << "Unknown action" << std::endl;
       return 1;
     }
-    LOG_INFO("parsed actions");
 
     // if argv[3] is a file, then use its content as request, otherwise use it directly
     std::string request_str;

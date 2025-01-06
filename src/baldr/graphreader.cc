@@ -427,7 +427,6 @@ graph_tile_ptr SynchronizedTileCache::Put(const GraphId& graphid, graph_tile_ptr
 
 // Constructs tile cache.
 TileCache* TileCacheFactory::createTileCache(const boost::property_tree::ptree& pt) {
-  LOG_INFO("TileCache Factory start");
   size_t max_cache_size = pt.get<size_t>("max_cache_size", DEFAULT_MAX_CACHE_SIZE);
 
   bool use_lru_cache = pt.get<bool>("use_lru_mem_cache", false);
@@ -480,7 +479,6 @@ GraphReader::GraphReader(const boost::property_tree::ptree& pt,
       max_concurrent_users_(pt.get<size_t>("max_concurrent_reader_users", 1)),
       tile_url_(pt.get<std::string>("tile_url", "")), cache_(TileCacheFactory::createTileCache(pt)) {
 
-  LOG_INFO("GraphReader CTOR body start");
   // Make a tile fetcher if we havent passed one in from somewhere else
   if (!tile_getter_ && !tile_url_.empty()) {
     tile_getter_ = std::make_unique<curl_tile_getter_t>(max_concurrent_users_,
@@ -491,13 +489,11 @@ GraphReader::GraphReader(const boost::property_tree::ptree& pt,
   // validate tile url
   if (!tile_url_.empty() && tile_url_.find(GraphTile::kTilePathPattern) == std::string::npos)
     throw std::runtime_error("Not found tilePath pattern in tile url");
-  LOG_INFO("GraphReader before cache reserve");
 
   // Reserve cache (based on whether using individual tile files or shared,
   // mmap'd file
   cache_->Reserve(tile_extract_->tiles.empty() ? AVERAGE_TILE_SIZE : AVERAGE_MM_TILE_SIZE);
 
-  LOG_INFO("GraphReader after cache reserve");
   // Initialize the incident cache singleton if we have any kind of configuration to do so. if the
   // configuration is wrong or any kind of problem occurs this throws. the call below will spawn a
   // single background thread which is responsible for loading incidents continually
@@ -509,12 +505,10 @@ GraphReader::GraphReader(const boost::property_tree::ptree& pt,
                                                            : GetTileSet());
   }
 
-  LOG_INFO("GraphReader CTOR body shortcuts");
   // Fill shortcut recovery cache if requested or by default in memmap mode
   if (pt.get<bool>("shortcut_caching", false)) {
     shortcut_recovery_t::get_instance(this);
   }
-  LOG_INFO("GraphReader CTOR body end");
 }
 
 // Method to test if tile exists

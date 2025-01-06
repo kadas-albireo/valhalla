@@ -183,7 +183,6 @@ loki_worker_t::loki_worker_t(const boost::property_tree::ptree& config,
       max_elevation_shape(config.get<size_t>("service_limits.skadi.max_shape")),
       min_resample(config.get<float>("service_limits.skadi.min_resample")) {
 
-  LOG_INFO("Loki worker CTOR start");
   // Keep a string noting which actions we support, throw if one isnt supported
   Options::Action action;
   for (const auto& kv : config.get_child("loki.actions")) {
@@ -199,7 +198,6 @@ loki_worker_t::loki_worker_t(const boost::property_tree::ptree& config,
     throw std::runtime_error("The config actions for Loki are incorrectly loaded");
   }
 
-  LOG_INFO("Loki worker CTOR start parsing slims");
   // Build max_locations and max_distance maps
   for (const auto& kv : config.get_child("service_limits")) {
     if (kv.first == "max_exclude_locations" || kv.first == "max_reachability" ||
@@ -223,9 +221,7 @@ loki_worker_t::loki_worker_t(const boost::property_tree::ptree& config,
       max_matrix_locations.emplace(kv.first, config.get<float>("service_limits." + kv.first +
                                                                ".max_matrix_location_pairs"));
     }
-    LOG_INFO("parsed" + kv.first);
   }
-  LOG_INFO("Loki worker CTOR end parsing slims");
   // this should never happen
   if (max_locations.empty()) {
     throw std::runtime_error("Missing max_locations configuration");
@@ -274,10 +270,8 @@ loki_worker_t::loki_worker_t(const boost::property_tree::ptree& config,
   max_distance_disable_hierarchy_culling =
       config.get<float>("service_limits.max_distance_disable_hierarchy_culling", 0.f);
 
-  LOG_INFO("max limits parsing done, signal worker start");
   // signal that the worker started successfully
   started();
-  LOG_INFO("Loki worker CTOR end");
 }
 
 void loki_worker_t::cleanup() {
