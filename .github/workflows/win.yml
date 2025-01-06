@@ -10,6 +10,7 @@ on:
       - test_requests/
     branches:
       - master
+      - chinesepostman
   pull_request:
     paths-ignore:
       - "*.md"
