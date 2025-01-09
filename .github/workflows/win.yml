@@ -102,7 +102,7 @@ jobs:
             -DVCPKG_INSTALL_OPTIONS="$VCPKG_INSTALL_OPTIONS" \
             -DENABLE_DATA_TOOLS=ON \
             -DENABLE_TOOLS=ON \
-            -DENABLE_PYTHON_BINDINGS=ON \
+            -DENABLE_PYTHON_BINDINGS=OFF \
             -DENABLE_HTTP=ON \
             -DENABLE_TESTS=OFF \
             -DENABLE_CCACHE=OFF \
