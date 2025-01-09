@@ -8,7 +8,7 @@ message("Will create .msi installer")
 # This is for WiX so that it does not complain about unsupported WiX License
 # file extension.
 configure_file(
-"${CMAKE_SOURCE_DIR}/LICENSE" "${CMAKE_BINARY_DIR}/LICENSE.txt" COPYONLY
+"${CMAKE_SOURCE_DIR}/COPYING" "${CMAKE_BINARY_DIR}/LICENSE.txt" COPYONLY
 )
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_BINARY_DIR}/LICENSE.txt")
 
