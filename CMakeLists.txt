@@ -34,6 +34,8 @@ option(ENABLE_WERROR "Convert compiler warnings to errors. Requires ENABLE_COMPI
 option(ENABLE_THREAD_SAFE_TILE_REF_COUNT "If ON uses shared_ptr as tile reference(i.e. it is thread safe)" OFF)
 option(ENABLE_SINGLE_FILES_WERROR "Convert compiler warnings to errors for single files" ON)
 option(PREFER_EXTERNAL_DEPS "Whether to use internally vendored headers or find the equivalent external package" OFF)
+option(BUILD_MSI "Whether to build an .msi installer (Windows only)" OFF)
+
 # useful to workaround issues likes this https://stackoverflow.com/questions/24078873/cmake-generated-xcode-project-wont-compile
 option(ENABLE_STATIC_LIBRARY_MODULES "If ON builds Valhalla modules as STATIC library targets" OFF)
 option(ENABLE_GDAL "Whether to include GDAL; currently only used for raster serialization of isotile grid" ON)
@@ -426,6 +428,11 @@ endif()
 
 set(CPACK_PROJECT_CONFIG_FILE ${VALHALLA_SOURCE_DIR}/cmake/CPackConfig.cmake)
 set(CPACK_DEBIAN_PACKAGE_DEBUG OFF)
+
+# If on Windows, configure CPack with WIX 
+if(WIN32 AND BUILD_MSI)
+  include(PackageWin)
+endif()
 include(CPack)
 
 configure_file(cmake/uninstall.cmake.in ${CMAKE_CURRENT_BINARY_DIR}/valhalla_uninstall.cmake @ONLY)

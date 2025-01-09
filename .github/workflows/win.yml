@@ -108,7 +108,8 @@ jobs:
             -DENABLE_SERVICES=OFF \
             -DLOGGING_LEVEL=TRACE \
             -DPREFER_EXTERNAL_DEPS=ON \
-            -DENABLE_GDAL=ON
+            -DENABLE_GDAL=ON \
+            -DBUILD_MSI=ON
 
       - name: Save vcpkg packages (always, to avoid redundant rebuilds)
         uses: actions/cache/save@v3
@@ -133,14 +134,16 @@ jobs:
           ./build/$BUILD_TYPE/valhalla_run_isochrone.exe --config ./test/win/valhalla.json -j "{\"locations\": [{\"lat\": 52.10205, \"lon\": 5.114651}], \"costing\": \"auto\", \"contours\":[{\"time\":15,\"color\":\"ff0000\"}]}"
           ./build/$BUILD_TYPE/valhalla_service.exe ./test/win/valhalla.json isochrone "{\"locations\": [{\"lat\": 52.10205, \"lon\": 5.114651}], \"costing\": \"auto\", \"contours\":[{\"time\":15,\"color\":\"ff0000\"}]}"
 
-      - name: Archive Valhalla
+      - name: Create .msi build
+        run: |
+          cmake --build build --target bundle --config Release
+
+      - name: Create .msi artifact
         uses: actions/upload-artifact@v4
         with:
           name: valhalla
           path: |
-            ./build/${{ env.BUILD_TYPE }}/*.dll
-            ./build/${{ env.BUILD_TYPE }}/*.exe
-            ./build/${{ env.BUILD_TYPE }}/valhalla_*
+            build/$BUILD_TYPE/*.zip
 
       - name: Setup tmate session
         uses: mxschmitt/action-tmate@v3
