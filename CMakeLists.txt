@@ -428,6 +428,9 @@ endif()
 
 set(CPACK_PROJECT_CONFIG_FILE ${VALHALLA_SOURCE_DIR}/cmake/CPackConfig.cmake)
 set(CPACK_DEBIAN_PACKAGE_DEBUG OFF)
+#set(CPACK_CMAKE_GENERATOR Ninja)
+set(CPACK_COMPONENTS_ALL runtime libraries development)
+set(CPACK_COMPONENTS_ALL_IN_ONE_PACKAGE 1)
 
 # If on Windows, configure CPack with WIX 
 if(WIN32 AND BUILD_MSI)
