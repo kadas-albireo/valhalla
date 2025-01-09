@@ -144,7 +144,8 @@ jobs:
         with:
           name: valhalla
           path: |
-            build/$BUILD_TYPE/*.zip
+            build/_CPack_Packages/win64/WIX/*.msi
+            build/_CPack_Packages/win64/ZIP/*.zip
 
       - name: Setup tmate session
         uses: mxschmitt/action-tmate@v3
