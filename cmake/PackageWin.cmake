@@ -2,6 +2,8 @@ set(CPACK_GENERATOR)
 set(CPACK_PACKAGE_HOMEPAGE_URL
     "https://github.com/valhalla/valhalla"
 )
+# install local dependencies created with vcpkg as well
+set(X_VCPKG_APPLOCAL_DEPS_INSTALL ON)
 
 message("Will create .msi installer")
 
