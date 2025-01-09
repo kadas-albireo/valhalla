@@ -107,7 +107,7 @@ jobs:
             -DENABLE_TESTS=OFF \
             -DENABLE_CCACHE=OFF \
             -DENABLE_SERVICES=OFF \
-            -DLOGGING_LEVEL=TRACE \
+            -DLOGGING_LEVEL=INFO \
             -DPREFER_EXTERNAL_DEPS=ON \
             -DENABLE_GDAL=ON \
             -DBUILD_MSI=ON \
@@ -139,6 +139,22 @@ jobs:
       - name: Create .msi build
         run: |
           cmake --build build --target bundle --config Release
+
+      - name: Sign .msi
+        if: github.event_name == 'workflow_dispatch'
+        uses: azure/trusted-signing-action@v0.5.0
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: https://weu.codesigning.azure.net/
+          code-signing-account-name: OPENGISch
+          certificate-profile-name: OPENGISch
+          files-folder: build/_CPack_Packages/win64/WIX
+          files-folder-filter: msi
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
 
       - name: Create .msi artifact
         uses: actions/upload-artifact@v4
