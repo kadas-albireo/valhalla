@@ -111,7 +111,8 @@ jobs:
             -DPREFER_EXTERNAL_DEPS=ON \
             -DENABLE_GDAL=ON \
             -DBUILD_MSI=ON \
-            -DX_VCPKG_APPLOCAL_DEPS_INSTALL=ON
+            -DX_VCPKG_APPLOCAL_DEPS_INSTALL=ON \
+            -DCMAKE_INSTALL_PREFIX="C:\Program Files\KadasAlbireo\opt\routing"
 
       - name: Save vcpkg packages (always, to avoid redundant rebuilds)
         uses: actions/cache/save@v3
